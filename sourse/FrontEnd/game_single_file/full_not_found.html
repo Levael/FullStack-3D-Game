@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="MobileOptimized" content="width">
+	<meta name="HandheldFriendly" content="true">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta charset="UTF-8">
+	<title>Not found</title>
+
+	<style>
+		body {
+		  padding: 0;
+		  margin: 0;
+		  z-index: 0;
+		  min-width: 500px;
+		  min-height: 600px;
+		  min-width: 100vw;
+		  min-height: 100vh;
+		  background-image:
+		    repeating-linear-gradient(
+		      -45deg,
+		      rgba(255, 107, 107, 0.65),  /* dark */
+		      rgba(255, 107, 107, 0.65) 30px,
+		      rgba(255, 158, 158, 0.65) 30px,  /* light */
+		      rgba(255, 158, 158, 0.65) 60px
+		    );
+		}
+		#wrapper {
+		  position: fixed;
+		  min-width: 100vw;
+		  min-height: 100vh;
+		  z-index: 1;
+		  background: radial-gradient(rgb(255, 160, 160, 0.6) 7%, rgb(152, 31, 31, 0.7) 100%);  /* center */
+		}
+		hr {
+		  width: 70vw;
+		  height: 6px;
+		  background-color: #D84545;
+		  border: 1px solid white;
+		}
+		#line_2 {
+		  width: 30vw;
+		}
+		main {
+		  display: block;
+		  text-align: center;
+		  width: auto;
+		  height: auto;
+		  margin-top: 30vh;
+		}
+		h1 {
+		  font-size: 38px;
+		}
+		h2 {
+		  font-size: 18px;
+		}
+		p {
+		  font-size: 22px;
+		}
+		a {
+		  width: 200px;
+		  display: block;
+		  margin: 0 auto;
+		  text-align: center;
+		  color: black;
+		  margin-top: 25px;
+		  font-size: 20px;
+		  text-decoration: none;
+		  border: 3px solid rgb(255, 107, 107);
+		  border-radius: 5px;
+		  background-color: rgb(255, 158, 158);
+		  padding: 5px;
+		}
+		
+	</style>
+</head>
+<body>
+	<div id="wrapper">
+  <main>
+    <h1>Page not found</h1>
+    <h2>Error code: <b>404</b></h2>
+    <hr>
+    <p>You may have entered the <strong>wrong address</strong> <br> <b>or</b> <br> the page is still <strong>in development</strong>. Please wait a few mounths <b>^ ^</b></p>
+    <hr id="line_2">
+    <a href="/game"><strong>Return to main page</strong></a>
+  </main>
+</div>
+
+</body>
+</html>

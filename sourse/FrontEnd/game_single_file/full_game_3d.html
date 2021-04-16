@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang>
+
+<head>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="MobileOptimized" content="width">
+	<meta name="HandheldFriendly" content="true">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta charset="UTF-8">
+	<title>Game v7 3D</title>
+
+	<style>
+		* {
+			box-sizing: border-box;
+		}
+
+		html,
+		body {
+			margin: 0;
+			padding: 0;
+		}
+
+		.hidden {
+			display: none !important;
+		}
+
+		canvas {
+			display: block;
+		}
+
+		#mini_instruction {
+			-moz-user-select: none;
+			-khtml-user-select: none;
+			user-select: none;
+
+			position: absolute;
+			display: block;
+			text-align: center;
+
+			width: 200px;
+			left: 50%;
+			top: 20px;
+			margin-left: -100px;
+
+			color: #979eaa;
+			opacity: 0.7;
+			font-size: 17px;
+			/* font-family: Monaco; */
+		}
+	</style>
+</head>
+
+<body>
+
+	<h3 id="mini_instruction">Right click to start</h3>
+
+	<script src='/libs/three.min.js'></script>
+	<script src="/libs/PointerLockControls.js"></script>
+	<script src="/libs/GLTFLoader.js"></script>
+	<script src="/libs/fps.js"></script>
+
+
+	<script type="text/javascript">
+		class SocketGame {
+
+			init(settings) {
+
+				// LOGIC PART ------------------------------------------------------------------
+				this.data_canvas = new Fps(); // подключение "модуля" fps
+
+				this.players = {};
+				this.ping = 'wait';
+				this.connectionIsAlive = false;
+				this.pressedKeys = {};
+
+				// this.player.temp.position = {};
+				// this.player.temp.direction = {};
+
+				this.player = {
+					id: '',
+					height: 2,
+					color: '#83BCFF',
+					speed: 0.2,
+					// view_direction: this.camera.getWorldDirection(),
+				};
+
+				this.player.temp = {
+					position: {},
+					direction: {},
+				};
+
+				window.addEventListener('keydown', (e) => {
+					// console.log(e.keyCode);
+					this.pressedKeys[e.keyCode] = true;
+				});
+
+				window.addEventListener('keyup', (e) => {
+					this.pressedKeys[e.keyCode] = false;
+				});
+
+				window.addEventListener('contextmenu', (e) => {
+					e.preventDefault();
+					this.controls.lock();
+
+					document.getElementById('mini_instruction').classList.toggle('hidden');
+				});
+
+				// THREE JS PART ---------------------------------------------------------------
+
+				// CAMERA
+				// Camera position and view direction will be set up after server autorisation
+
+				this.camera = new THREE.PerspectiveCamera(
+					75,
+					window.innerWidth / window.innerHeight,
+					0.1,
+					1000
+				);
+
+				// LOADERS
+
+				this.cube_loader = new THREE.CubeTextureLoader();
+				this.gltf_loader = new THREE.GLTFLoader();
+
+				// RENDERER
+
+				this.renderer = new THREE.WebGLRenderer({
+					antialias: true,
+				});
+
+				this.renderer.setClearColor('#9AD6FF');
+				this.renderer.setSize(window.innerWidth, window.innerHeight);
+				document.body.appendChild(this.renderer.domElement);
+
+				window.addEventListener('resize', () => {
+					this.renderer.setSize(window.innerWidth, window.innerHeight);
+					this.camera.aspect = window.innerWidth / window.innerHeight;
+					this.camera.updateProjectionMatrix();
+				});
+
+				// LIGHTS
+
+				this.ambient_light = new THREE.AmbientLight('#FFFFFF', 0.9);
+
+				// OBJECTS
+
+				// Import model
+
+				this.gltf_loader.load('/models/dome.gltf', (object) => {
+					this.dome = object.scene;
+					this.dome_walls_geometry = this.dome.children[0].geometry;
+					this.dome_floor_geometry = this.dome.children[1].geometry;
+
+					this.dome_walls_mesh = new THREE.Mesh(
+						this.dome_walls_geometry,
+						new THREE.MeshBasicMaterial({
+							color: 0x1866c4,
+							opacity: 0.4,
+							transparent: true,
+							// depthTest: false,
+
+							wireframe: false,
+							side: THREE.DoubleSide,
+							polygonOffset: true,
+							polygonOffsetFactor: 1,
+							polygonOffsetUnits: 1,
+						})
+					);
+
+					this.dome_walls_frame = new THREE.LineSegments(
+						new THREE.EdgesGeometry(this.dome_walls_geometry),
+						new THREE.LineBasicMaterial({
+							color: 0x000e9f,
+							// linewidth: 10,
+						})
+					);
+
+					this.dome_floor_mesh = new THREE.Mesh(
+						this.dome_floor_geometry,
+						new THREE.MeshBasicMaterial({
+							color: 0x373737,
+							opacity: 0.8,
+							transparent: true,
+							side: THREE.FrontSide,
+						})
+					);
+
+					this.dome_group = new THREE.Group();
+					this.dome_group.add(this.dome_walls_mesh, this.dome_walls_frame, this.dome_floor_mesh);
+					this.scene.add(this.dome_group);
+				});
+
+				// Skybox
+
+				this.cube_loader.setPath('Skyboxs/');
+
+				this.texture_cube = this.cube_loader.load([
+					'right.png', // x+
+					'left.png', // x-
+					'top.png', // y+
+					'bottom.png', // y-
+					'front.png', // z+
+					'back.png' // z-
+				]);
+
+				// SCENE
+
+				this.scene = new THREE.Scene();
+				this.scene.background = this.texture_cube;
+
+				this.scene.add(this.ambient_light);
+				// this.scene.add(this.test_cube_group);
+
+				// CONTROLS
+
+				this.controls = new THREE.PointerLockControls(this.camera, document.body);
+
+				this.controls.addEventListener('lock', () => {});
+
+				this.controls.addEventListener('unlock', () => {});
+
+
+				// WEB SOCKET PART --------------------------------------------------------------
+				this.wsc = new WebSocket(`ws://${settings.ip}`);
+
+				this.wsc.addEventListener('open', () => {
+					this.onOpen()
+				});
+				this.wsc.addEventListener('close', () => {
+					this.onClose()
+				});
+				this.wsc.addEventListener('message', (message) => {
+					this.onMessage(message)
+				});
+			}
+
+			// FUNCTIONS CONTROLS
+
+			MovePlayer() {
+				this.player.temp.direction = this.camera.getWorldDirection();
+
+				if (this.pressedKeys['87']) this.CalcMoveForward(); // W
+				if (this.pressedKeys['65']) this.CalcMoveLeft(); // A
+				if (this.pressedKeys['83']) this.CalcMoveBack(); // S
+				if (this.pressedKeys['68']) this.CalcMoveRight(); // D
+
+				if (this.pressedKeys['32']) this.CalcMoveUp(); // Space
+				if (this.pressedKeys['16']) this.CalcMoveDown(); // L_shift
+
+				this.SendPlayerTempPosition();
+			}
+
+			GetCameraYangle() {
+				// это поебота с вектором нужна только потому что автор движка, блять, считает угол по 180 градусов, а не 360. Пидарас. Или нет
+
+				let vector = this.camera.getWorldDirection(),
+					Y_angle = Math.atan2(vector.x, vector.z);
+				// Y_angle = (Math.atan2(vector.x, vector.z) + Math.PI*2) % (Math.PI*2);
+
+				return Y_angle;
+			}
+
+			CalcMoveForward() {
+				let angle = this.GetCameraYangle();
+
+				this.player.temp.position.x += Math.sin(angle) * this.player.speed;
+				this.player.temp.position.z += Math.cos(angle) * this.player.speed;
+			}
+
+			CalcMoveBack() {
+				let angle = this.GetCameraYangle();
+
+				this.player.temp.position.x += -Math.sin(angle) * this.player.speed;
+				this.player.temp.position.z += -Math.cos(angle) * this.player.speed;
+			}
+
+			CalcMoveLeft() {
+				let angle = this.GetCameraYangle();
+
+				this.player.temp.position.x += Math.sin(angle + Math.PI / 2) * this.player.speed;
+				this.player.temp.position.z += Math.cos(angle + Math.PI / 2) * this.player.speed;
+			}
+
+			CalcMoveRight() {
+				let angle = this.GetCameraYangle();
+
+				this.player.temp.position.x += Math.sin(angle - Math.PI / 2) * this.player.speed;
+				this.player.temp.position.z += Math.cos(angle - Math.PI / 2) * this.player.speed;
+			}
+
+			CalcMoveUp() {
+				this.player.temp.position.y += this.player.speed;
+			}
+
+			CalcMoveDown() {
+				this.player.temp.position.y -= this.player.speed;
+			}
+
+			// ANIMATION PART
+
+			animationLoop() {
+				if (this.connectionIsAlive) {
+
+					this.MovePlayer(); // каждый тик проверяет передвинулся я куда-либо или нет
+					this.drawNewFrame({
+						ping: this.ping,
+						players_count: Object.keys(this.players).length
+					});
+					// this.drawNewFrame();
+
+					window.requestAnimationFrame(() => this.animationLoop());
+				}
+			}
+
+			animationStart() {
+				this.animationLoop();
+			}
+
+			drawNewFrame(params = {}) {
+
+				for (let player in this.players) {
+
+					if (this.players[player].object) {
+						let PP = this.players[player].position,
+							PD = this.players[player].direction;
+
+						this.players[player].object.position.set(PP.x, PP.y, PP.z);
+						// let angle = this.GetCameraYangle();
+						this.players[player].object.lookAt(PP.x + PD.x * 10, PP.y + PD.y * 10, PP.z + PD.z * 10);
+					}
+
+				}
+
+				let my_pos = this.players[this.player.id].position;
+				this.camera.position.set(my_pos.x, my_pos.y, my_pos.z)
+
+				this.renderer.render(this.scene, this.camera);
+
+				// fps and another data to display on other 2D canvas
+				let data_to_display = [];
+
+				if (params.ping) data_to_display.push({
+					data: params.ping,
+					index: 1,
+					pre_text: 'ping',
+					post_text: 'ms'
+				});
+
+				if (params.players_count) data_to_display.push({
+					data: params.players_count,
+					index: 3,
+					pre_text: 'players',
+					post_text: ''
+				});
+
+				this.data_canvas.display(data_to_display); // if (data_to_display.length != 0)
+			}
+
+			disconectMode() {
+				this.connectionIsAlive = false;
+				clearInterval(this.pingCkeck);
+			}
+
+			// WEB SOCKET PART
+
+			onOpen() {
+				// autorisation asking
+				this.wsc.send(JSON.stringify({
+					'mode': 'AcceptToGame',
+				}));
+			}
+
+			onClose() {
+				// console.log('conection closed');
+				// нет нужды в чём-либо, сервер сам разорвёт соединение и удалит объект игрока из массива
+				this.disconectMode();
+			}
+
+			onMessage(message) {
+				let msg = JSON.parse(message.data);
+
+				switch (msg.mode) {
+
+					case 'personal':
+
+						this.players = Object.assign({}, msg.players);
+						this.player.id = msg.id;
+						this.player.position = new THREE.Vector3(msg.players[msg.id].position.x, msg.players[msg.id].position.y, msg.players[msg.id].position.z);
+						this.player.temp.position = this.player.position;
+
+						this.player.direction = new THREE.Vector3(msg.players[msg.id].direction.x, msg.players[msg.id].direction.y, msg.players[msg.id].direction.z);
+						this.player.temp.direction = this.player.direction;
+
+						this.camera.position.set(this.player.position.x, this.player.position.y, this.player.position.z);
+						this.camera.lookAt(this.player.direction);
+
+
+						for (let player in this.players) {
+							// Rendering all players except myself
+							if (this.players[player].id != this.player.id) this.addPlayerBoxToScene(this.players[player]);
+						}
+
+						this.connectionIsAlive = true;
+						this.animationStart();
+
+						this.pingCkeck = setInterval(() => {
+							this.last_ping_sended_time = performance.now();
+							this.wsc.send(JSON.stringify({
+								'mode': 'PingCheck'
+							}));
+						}, 1000);
+
+						break;
+
+					case 'ping_answer':
+						// оставляем только два знака после запятой, а то там длинно выходит) то 0, то 15 цифр в длину
+						// performance.now() это "правильная" замена new Date().getTime() => более точно рассчитывает время
+
+						this.ping = (performance.now() - this.last_ping_sended_time).toFixed(2);
+						break;
+
+					case 'player_move':
+						// console.log('move');
+						// console.log(msg.new_direction);
+
+						this.updatePlayerPosition(msg.player_id, msg.new_position, msg.new_direction);
+						break;
+
+					case 'add_player':
+						// console.log('add');
+						if (this.player.id) this.addPlayer(msg.player);
+						break;
+
+					case 'remove_player':
+						// console.log('remove');
+						this.removePlayer(msg.player_id);
+						break;
+				}
+			}
+
+			// LOGIC PART
+
+			updatePlayerPosition(player_id, new_position, new_direction) {
+				this.players[player_id].position = new_position;
+				this.players[player_id].direction = new_direction;
+			}
+
+			SendPlayerTempPosition() {
+				this.wsc.send(JSON.stringify({
+					'mode': 'PlayerMove',
+					'new_position': this.player.temp.position,
+					'new_direction': this.player.temp.direction,
+				}));
+			}
+
+			removePlayer(player_id) {
+				this.scene.remove(this.players[player_id].object);
+				delete this.players[player_id];
+			}
+
+			addPlayer(player) {
+				this.players[player.id] = player;
+				this.addPlayerBoxToScene(player);
+			}
+
+			addPlayerBoxToScene(player_obj) {
+				let player_box = new THREE.Mesh(
+					new THREE.BoxGeometry(1, 1, 1),
+					new THREE.MeshBasicMaterial({
+						color: player_obj.color,
+						wireframe: false
+					})
+				);
+
+				player_box.position.set(
+					player_obj.position.x,
+					2,
+					player_obj.position.z,
+				);
+
+				player_box.setRotationFromEuler(new THREE.Euler().setFromVector3(player_obj.direction));
+
+				this.scene.add(player_box);
+				this.players[player_obj.id].object = player_box;
+			}
+
+		}
+
+
+		function MAIN() {
+			new SocketGame().init({
+				'ip': 'localhost',
+			});
+		}
+
+		window.onload = () => {
+			MAIN();
+		}
+
+
+
+		// this.point_light_1 = new THREE.PointLight('#FFFFFF', 1, 1000);
+		// this.point_light_1.position.set(0, 5, 0);
+		//
+		// this.point_light_2 = new THREE.PointLight('#FFFFFF', 2, 150);
+		// this.point_light_2.position.set(-10, 10, -15);
+
+		// this.gltfLoader = new THREE.GLTFLoader();
+		//
+		// this.gltfLoader.load('/half_sphere.gltf', (gltf_object) => {
+		// 		let object = gltf_object.scene;
+		// 		this.scene.add(object);
+		// 		object.position.set = new THREE.Vector3(0,0,0);
+		// 		// object.rotateY(50);
+		// });
+
+		// this.scene.add(this.directional_light);
+		// this.scene.add(this.directional_light.target);
+		// this.scene.add(this.skybox);
+		// this.scene.add(this.point_light);
+
+		// this.directional_light = new THREE.DirectionalLight('#FFFFFF', 2);
+		// this.directional_light.position.set(50, 50, -20);
+		// this.directional_light.target.position.set(0, 0, 0);
+		// this.directional_light_helper = new THREE.DirectionalLightHelper(this.directional_light, 10);
+		// this.directional_light.add(this.directional_light_helper);
+
+		// this.test_cube = new THREE.SceneUtils.createMultiMaterialObject(
+		// 	new THREE.CubeGeometry(3, 3, 3),
+		// 	[
+		// 		new THREE.MeshBasicMaterial({
+		// 			color: 0x3773ad,
+		// 			wireframe: false,
+		// 			side: THREE.DoubleSide
+		// 		}),
+		// 		new THREE.MeshBasicMaterial({
+		// 			color: 0x2ad62e,
+		// 			wireframe: true,
+		// 			polygonOffset: true,
+		// 			polygonOffsetFactor: 1,
+		// 			polygonOffsetUnits: 1,
+		// 			side: THREE.DoubleSide
+		// 		})
+		// 	]
+		// );
+
+		// this.gltf_loader = new THREE.GLTFLoader();
+		//
+		// this.gltf_loader.load('/models/test.gltf', (object) => {
+		// 	this.dome = object.scene;
+		// 	this.scene.add(this.dome);
+		// 	this.dome.position.set = new THREE.Vector3(0, 0, 0);
+		//
+		// 	// console.log(this.dome.children[0].children[0].geometry);
+		// });
+
+		// this.test_cube_mesh = new THREE.Mesh(
+		// 	this.dome_walls_geometry,
+		//
+		// 	new THREE.MeshBasicMaterial({
+		// 		color: 0x3773ad,
+		// 		wireframe: false,
+		// 		// side: THREE.DoubleSide,
+		// 		polygonOffset: true,
+		// 		polygonOffsetFactor: 1,
+		// 		polygonOffsetUnits: 1,
+		// 	})
+		// );
+
+		// this.floor = new THREE.Mesh(
+		// 	new THREE.PlaneGeometry(1000, 1000, 1, 1),
+		// 	new THREE.MeshBasicMaterial({
+		// 		color: 0x363d4b
+		// 	})
+		// );
+		//
+		// this.floor.rotateX(-Math.PI / 2);
+
+		// test cube wareframe
+
+		// this.test_cube_geometry = new THREE.BoxGeometry(3, 3, 3);
+		//
+		// this.test_cube_mesh = new THREE.Mesh(
+		// 	this.test_cube_geometry,
+		//
+		// 	new THREE.MeshBasicMaterial({
+		// 		color: 0x3773ad,
+		// 		wireframe: false,
+		// 		polygonOffset: true,
+		// 		polygonOffsetFactor: 1,
+		// 		polygonOffsetUnits: 1,
+		// 	})
+		// );
+		//
+		// this.test_cube_frame = new THREE.LineSegments(
+		// 	new THREE.EdgesGeometry(this.test_cube_geometry),
+		// 	new THREE.LineBasicMaterial({
+		// 		color: 0x38da6a,
+		// 		linewidth: 10,
+		// 	})
+		// );
+
+		// this.test_cube_group = new THREE.Group();
+		// this.test_cube_group.add(this.test_cube_mesh, this.test_cube_frame);
+		// this.test_cube_group.position.set(15, 5, 15);
+
+		// case 'massive_upd':
+		// 	console.log('upd');
+		// 	// logic.players = msg.players;
+		// 	break;
+
+		// AddMe() {
+		// 	this.addPlayerBoxToScene(this.player);
+		// }
+
+
+	</script>
+
+</body>
+
+</html>

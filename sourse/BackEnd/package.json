@@ -1,0 +1,16 @@
+{
+  "name": "Fullstack 3D online game",
+  "version": "1.0.1",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "https": "node https_server.js",
+    "game": "node game_http_server.js"
+  },
+  "author": "Michael Levin <Levael.Savvy@gmail.com>",
+  "license": "ISC",
+  "dependencies": {
+    "ejs": "^3.1.5",
+    "ws": "^7.3.1"
+  }
+}
