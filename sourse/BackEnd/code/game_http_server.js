@@ -108,6 +108,9 @@ function GetResponse (req, res) {
                 case Boolean(req.url.match(/models/)):
                     SendFile(res, path.join(sourse_folder, 'FrontEnd/images/', req.url), 'text/plain');
                     break;
+                case Boolean(req.url.match(/textures/)):
+                    SendFile(res, path.join(sourse_folder, 'FrontEnd/images/', req.url), 'image/png');
+                    break;
                 case Boolean(req.url.match(/libs/)):
                     SendFile(res, path.join(sourse_folder, 'FrontEnd/', req.url), 'text/javascript');
                     break;

@@ -7,7 +7,7 @@
 	<meta name="HandheldFriendly" content="true">
 	<meta name="apple-mobile-web-app-capable" content="yes">
 	<meta charset="UTF-8">
-	<title>Game v8 3D</title>	<!-- grass update -->
+	<title>Game v7 3D</title>
 
 	<style>
 		* {
@@ -142,16 +142,62 @@
 				// LIGHTS
 
 				this.ambient_light = new THREE.AmbientLight('#FFFFFF', 0.9);
-				this.point_light = new THREE.PointLight('#FFFFFF', 1);
-				this.point_light.position.set(3,15,3);
+				this.point_light = new THREE.PointLight('#FFFFFF');
 
 				// OBJECTS
 
 				this.test_floor_plane = new THREE.Mesh(
-					new THREE.PlaneGeometry(50, 50),
-					new THREE.MeshBasicMaterial({color: 0xE1EDF9, side: THREE.DoubleSide})
+					new THREE.PlaneGeometry(5, 5),
+					new THREE.MeshBasicMaterial({color: 0xff00ff, side: THREE.DoubleSide})
 				);
 				this.test_floor_plane.rotateX(-Math.PI/2);
+				// console.log(this.test_floor_plane);
+
+				// Import model
+
+				// this.gltf_loader.load('/models/dome.gltf', (object) => {
+				// 	this.dome = object.scene;
+				// 	this.dome_walls_geometry = this.dome.children[0].geometry;
+				// 	this.dome_floor_geometry = this.dome.children[1].geometry;
+				//
+				// 	this.dome_walls_mesh = new THREE.Mesh(
+				// 		this.dome_walls_geometry,
+				// 		new THREE.MeshBasicMaterial({
+				// 			color: 0x1866c4,
+				// 			opacity: 0.4,
+				// 			transparent: true,
+				// 			// depthTest: false,
+				//
+				// 			wireframe: false,
+				// 			side: THREE.DoubleSide,
+				// 			polygonOffset: true,
+				// 			polygonOffsetFactor: 1,
+				// 			polygonOffsetUnits: 1,
+				// 		})
+				// 	);
+				//
+				// 	this.dome_walls_frame = new THREE.LineSegments(
+				// 		new THREE.EdgesGeometry(this.dome_walls_geometry),
+				// 		new THREE.LineBasicMaterial({
+				// 			color: 0x000e9f,
+				// 			// linewidth: 10,
+				// 		})
+				// 	);
+				//
+				// 	this.dome_floor_mesh = new THREE.Mesh(
+				// 		this.dome_floor_geometry,
+				// 		new THREE.MeshBasicMaterial({
+				// 			color: 0x373737,
+				// 			opacity: 0.8,
+				// 			transparent: true,
+				// 			side: THREE.FrontSide,
+				// 		})
+				// 	);
+				//
+				// 	this.dome_group = new THREE.Group();
+				// 	this.dome_group.add(this.dome_walls_mesh, this.dome_walls_frame, this.dome_floor_mesh);
+				// 	this.scene.add(this.dome_group);
+				// });
 
 				// Skybox
 
@@ -173,9 +219,7 @@
 
 				this.scene.add(this.ambient_light);
 				this.scene.add(this.test_floor_plane);
-				this.scene.add(this.point_light);
-
-				this.CreatePedestals();
+				this.CreateGrassGrid(10, 10);
 
 				// CONTROLS
 
@@ -202,126 +246,108 @@
 
 			// FUNCTIONS AMBIENT
 
-			TestCustomShader () {
-				let vshader = `
-					uniform float u_time;
-					uniform float u_radius;
-
-					void main() {
-					  float delta = ((sin(u_time)+1.0)/2.0);
-
-					  vec3 v = normalize(position) * u_radius;
-					  vec3 pos = mix(position, v, delta);
-
-					  gl_Position = projectionMatrix * modelViewMatrix * vec4( pos, 1.0 );
-					}
-				`;
-
-				this.uniforms = {
-					u_time: 	{value: 0.0},
-					u_radius: 	{value: 1.0}
-				};
-
-				console.log(this.uniforms);
-
-				let mutant = new THREE.Mesh(
-					new THREE.BoxGeometry(1,1,1, 6,6,6),
-					new THREE.ShaderMaterial({
-						uniforms: this.uniforms,
-						vertexShader: vshader,
-						wireframe: true
-					})
-				);
-
-				return mutant;
-			}
-
-			CreatePedestals (number = 8) {
-				this.pedestals = [];
-				let meshes_on_pedestals = [
-					this.CreateGrassBush(3),	// grass bush
-					this.TestCustomShader(),	// cube-sphere mutant
-				];
-
-				// custom settings for meshes
-
-				meshes_on_pedestals[0].scale.set(0.7, 0.7, 0.7);
-				meshes_on_pedestals[0].position.y = 3.4;
-
-				meshes_on_pedestals[1].scale.set(0.65, 0.65, 0.65);
-				meshes_on_pedestals[1].position.y = 3.4;
-
-				let pedestal = this.gltf_loader.load('/models/pedestal.gltf', (object) => {
-					let pedestal = object.scene.children[0];
-
-					for (let n = 0; n < number; n++) {
-						let group = new THREE.Group();
-
-						group.add(pedestal.clone());
-						group.add(meshes_on_pedestals[n]);
-						group.rotateY((Math.PI / number) * (n + 1)); 	// rotation
-						// group.position.x = (-number/2 + n)*3;		// in line order
-						group.translateZ(7);							// in radial order
-
-						this.scene.add(group);
-					}
-				});
-			}
-
-			CreateSlicedGrass () {
-				let texture_left 	= new THREE.TextureLoader().load("textures/grass_v4_left.png");
-				let texture_right 	= new THREE.TextureLoader().load("textures/grass_v4_right.png");
-
-				let left_part = new THREE.Mesh(
-					new THREE.PlaneGeometry(1, 2, 2, 4),
-					new THREE.MeshStandardMaterial({map: texture_left, side: THREE.DoubleSide, transparent: true, depthWrite: false}) 	// без depthWrite всё идёт по пизде
-					// new THREE.MeshBasicMaterial({color: 0x00ff00, side: THREE.DoubleSide, wireframe: true})
-				);
-
-				let right_part = new THREE.Mesh(
-					new THREE.PlaneGeometry(1, 2, 2, 4),
-					new THREE.MeshStandardMaterial({map: texture_right, side: THREE.DoubleSide, transparent: true, depthWrite: false}) 	// без depthWrite всё идёт по пизде
-					// new THREE.MeshBasicMaterial({color: 0x00ff00, side: THREE.DoubleSide, wireframe: true})
-				);
+			CreateGrassGrid (by_x, by_z) {
+				this.grass_array = [];
+				let texture = new THREE.TextureLoader().load("textures/grass_v6.png");
 
 
-				left_part.position.x -= left_part.geometry.parameters.width / 2;
-				right_part.position.x += right_part.geometry.parameters.width / 2;
+				for (let x = 0; x < by_x; x++) {
+					for (let z = 0; z < by_z; z++) {
+						// let group = new THREE.Group();
+						//
+						let first_side = this.CreateOneSidedGrass(texture, x, z);
+						// let second_side = JSON.parse(JSON.stringify(first_side));
+						// console.log(second_side);
+						let second_side = this.CreateOneSidedGrass(texture, x, z);
+						second_side.rotateY(-Math.PI/2);
+						//
+						// group.add(first_side);
+						// group.add(second_side);
+						//
+						// this.grass_array.push(group);
+						// let singleGeometry = new THREE.Geometry();
+						//
+						// let first_side = this.CreateOneSidedGrass(texture, x, z);
+						// first_side.updateMatrix();
+					    // singleGeometry.merge(first_side.geometry, first_side.matrix);
+						//
+						// let second_side = this.CreateOneSidedGrass(texture, x, z);
+						// second_side.rotateY(Math.PI/2);
+					    // second_side.updateMatrix();
+					    // singleGeometry.merge(second_side.geometry, second_side.matrix);
+						//
+					    // let final_mesh = new THREE.Mesh(singleGeometry, texture);
+						// this.grass_array.push(final_mesh);
 
-				let group = new THREE.Group();
-				group.add(left_part);
-				group.add(right_part);
-
-				return group;
-			}
-
-			CreateGrassBush (sides, first_texture, second_texture) {
-				let group = new THREE.Group();
-
-				for (let i = 0; i < sides; i++) {
-					let slice = this.CreateSlicedGrass(first_texture, second_texture);
-					slice.rotateY((Math.PI / sides) * (i + 1)); 	//calculation for equal slices rotation
-					group.add(slice);
-				}
-
-				// поднятие по У на пол высота, так как центр меша в центре, а не у основания. Данные из первой полустороны
-				group.position.y += group.children[0].children[0].geometry.parameters.height / 2;
-
-				let vertices_copy = [];
-
-				for (let slice of group.children) {
-					for (let half of slice.children) {
-						// одинаковфе корды у всех вызодят, надо матрицу наверное применить
-						// vertices_copy.push(half.geometry.vertices);
-						// half.geometry.vertices;
+						// let group = new THREE.Group();
+						// group.add();
+						//
+						// let single_grass_mesh = new THREE.Mesh(
+						// 	new THREE.PlaneGeometry(1, 1, 1, 3),
+						// 	new THREE.MeshStandardMaterial({map : texture, side: THREE.DoubleSide, transparent: true})
+						// 	// new THREE.MeshBasicMaterial({color: 0x00ff00, side: THREE.DoubleSide, wireframe: true})
+						// );
+						//
+						// single_grass_mesh.position.y += 0.5;
+						// single_grass_mesh.position.x = x;
+						// single_grass_mesh.position.z = z;
+						//
+						// for (let vertex of single_grass_mesh.geometry.vertices) {
+						// 	vertex.x_base = vertex.x + x;
+						// 	vertex.z_base = vertex.z + z;
+						// 	vertex.y_base = vertex.y + 0.5;
+						// }
+						//
+						this.grass_array.push(first_side);
+						this.grass_array.push(second_side);
 					}
 				}
 
-				// console.log(vertices_copy);
-
-				return group;
+				for (let grass of this.grass_array) {
+					this.scene.add(grass);
+					// console.log(grass);
+				}
 			}
 
+			CreateOneSidedGrass (texture, x, z) {
+				let side_grass_mesh = new THREE.Mesh(
+					new THREE.PlaneGeometry(1, 1, 1, 3),
+					new THREE.MeshStandardMaterial({map : texture, side: THREE.DoubleSide, transparent: true})
+					// new THREE.MeshBasicMaterial({color: 0x00ff00, side: THREE.DoubleSide, wireframe: true})
+				);
+
+				side_grass_mesh.position.y += 0.5;
+				side_grass_mesh.position.x = x;
+				side_grass_mesh.position.z = z;
+
+				for (let vertex of side_grass_mesh.geometry.vertices) {
+					vertex.x_base = vertex.x + x;
+					vertex.z_base = vertex.z + z;
+					vertex.y_base = vertex.y + 0.5;
+				}
+
+				return side_grass_mesh;
+
+				// our code
+			    // var plain_1 = new THREE.PlainGeometry(1, 1, 1, 3);
+				// var plain_2 = new THREE.PlainGeometry(1, 1, 1, 3);
+				// plain_2.rotateY(Math.PI/2);
+				//
+				//
+			    // var singleGeometry = new THREE.Geometry();
+				//
+			    // var plain_1_mesh = new THREE.Mesh(plain_1);
+			    // var plain_2_mesh = new THREE.Mesh(plain_2);
+				//
+			    // plain_1_mesh.updateMatrix(); // as needed
+			    // singleGeometry.merge(plain_1_mesh.geometry, plain_1_mesh.matrix);
+				//
+			    // plain_2_mesh.updateMatrix(); // as needed
+			    // singleGeometry.merge(plain_2_mesh.geometry, plain_2_mesh.matrix);
+				//
+			    // var final_mesh = new THREE.Mesh(singleGeometry, texture);
+
+			}
 
 			// FUNCTIONS CONTROLS
 
@@ -406,8 +432,44 @@
 			}
 
 			drawNewFrame(params = {}) {
-				// for custom mesh animation (mutant)
-				if (this.uniforms) this.uniforms.u_time.value += 0.03;
+
+				// ============ tests ===========================
+				for (let grass of this.grass_array) {
+					// console.log(grass);
+					// grass.geometry.vertices.x = grass.geometry.vertices.x_base;
+					// this.test_grass_plane.geometry.vertices[index].x = this.test_grass_plane_basic_verteces[index].x;
+					// console.log(this.grass_array);
+					for (let vertex of grass.geometry.vertices) {
+						vertex.x =
+							(vertex.x_base + 0.5)
+							+ (Math.sin(+Date.now() * 0.005)	// noise  Math.random()
+							* 0.2
+							+ 0.2)
+							* (vertex.y_base);
+
+						grass.geometry.verticesNeedUpdate = true; 	// otherwise it doesn't update
+						grass.material.needsUpdate = true;
+					}
+
+				}
+
+				// for (let index in this.test_grass_plane.geometry.vertices) {
+				// 	this.test_grass_plane.geometry.vertices[index].x = this.test_grass_plane_basic_verteces[index].x;
+				//
+				// 	this.test_grass_plane.geometry.vertices[index].x =
+				// 		(this.test_grass_plane_basic_verteces[index].x + 0.5)
+				// 		+ (Math.sin(+Date.now() * 0.005)	// noise  Math.random()
+				//
+				// 		* 0.2
+				// 		+ 0.2)
+				// 		* (this.test_grass_plane.geometry.vertices[index].y + 1.5)
+				//
+				// 	;
+				//
+				// 	this.test_grass_plane.geometry.verticesNeedUpdate = true; 	// otherwise it doesn't update
+				// }
+
+				// console.log(this.test_grass_plane.geometry.vertices[0].x);
 
 				// =====================================================
 
@@ -447,6 +509,7 @@
 				});
 
 				this.data_canvas.display(data_to_display); // if (data_to_display.length != 0)
+
 
 			}
 
@@ -592,198 +655,6 @@
 		}
 
 
-		// CreateGrassGrid (by_x, by_z) {
-		// 	this.grass_array = [];
-		//
-		// 	for (let x = 0; x < by_x; x++) {
-		// 		for (let z = 0; z < by_z; z++) {
-		//
-		// 		}
-		// 	}
-		//
-		// 	for (let grass of this.grass_array) {
-		// 		this.scene.add(grass);
-		// 	}
-		// }
-
-		// for (let grass of this.grass_array) {
-		//
-		// 	for (let vertex of grass.geometry.vertices) {
-		// 		vertex.x =
-		// 			(vertex.x_base) 	//  + 0.5
-		// 			+ (Math.sin(+Date.now() * 0.005)	// noise  Math.random()
-		// 			* 0.2
-		// 			+ 0.2)
-		// 			* (vertex.y_base);
-		//
-		// 		grass.geometry.verticesNeedUpdate = true; 	// otherwise it doesn't update
-		// 		grass.material.needsUpdate = true;
-		// 	}
-		//
-		// }
-
-		// console.log(this.test_floor_plane);
-
-		// Import model
-
-		// this.gltf_loader.load('/models/dome.gltf', (object) => {
-		// 	this.dome = object.scene;
-		// 	this.dome_walls_geometry = this.dome.children[0].geometry;
-		// 	this.dome_floor_geometry = this.dome.children[1].geometry;
-		//
-		// 	this.dome_walls_mesh = new THREE.Mesh(
-		// 		this.dome_walls_geometry,
-		// 		new THREE.MeshBasicMaterial({
-		// 			color: 0x1866c4,
-		// 			opacity: 0.4,
-		// 			transparent: true,
-		// 			// depthTest: false,
-		//
-		// 			wireframe: false,
-		// 			side: THREE.DoubleSide,
-		// 			polygonOffset: true,
-		// 			polygonOffsetFactor: 1,
-		// 			polygonOffsetUnits: 1,
-		// 		})
-		// 	);
-		//
-		// 	this.dome_walls_frame = new THREE.LineSegments(
-		// 		new THREE.EdgesGeometry(this.dome_walls_geometry),
-		// 		new THREE.LineBasicMaterial({
-		// 			color: 0x000e9f,
-		// 			// linewidth: 10,
-		// 		})
-		// 	);
-		//
-		// 	this.dome_floor_mesh = new THREE.Mesh(
-		// 		this.dome_floor_geometry,
-		// 		new THREE.MeshBasicMaterial({
-		// 			color: 0x373737,
-		// 			opacity: 0.8,
-		// 			transparent: true,
-		// 			side: THREE.FrontSide,
-		// 		})
-		// 	);
-		//
-		// 	this.dome_group = new THREE.Group();
-		// 	this.dome_group.add(this.dome_walls_mesh, this.dome_walls_frame, this.dome_floor_mesh);
-		// 	this.scene.add(this.dome_group);
-		// });
-
-		// left_part.position.y += left_part.geometry.parameters.height / 2;
-		// right_part.position.y += right_part.geometry.parameters.height / 2;
-
-		// CreateDoubleGrass () {
-		// 	let first_slice = this.CreateSlicedGrass();
-		// 	let second_slice = this.CreateSlicedGrass();
-		//
-		// 	second_slice.rotateY(-Math.PI/2);
-		//
-		// 	this.scene.add(first_slice);
-		// 	this.scene.add(second_slice);
-		// }
-
-		// CreateOneSidedGrass (texture, x, z) {
-		// 	let side_grass_mesh = new THREE.Mesh(
-		// 		new THREE.PlaneGeometry(1, 1, 1, 3),
-		// 		new THREE.MeshStandardMaterial({map : texture, side: THREE.DoubleSide, transparent: true, depthWrite: false}) 	// без depthWrite всё идёт по пизде
-		// 		// new THREE.MeshBasicMaterial({color: 0x00ff00, side: THREE.DoubleSide, wireframe: true})
-		// 	);
-		//
-		// 	side_grass_mesh.position.y += 0.5;
-		// 	side_grass_mesh.position.x = x;
-		// 	side_grass_mesh.position.z = z;
-		//
-		// 	for (let vertex of side_grass_mesh.geometry.vertices) {
-		// 		vertex.x_base = vertex.x + x;
-		// 		vertex.z_base = vertex.z + z;
-		// 		vertex.y_base = vertex.y + 0.5;
-		// 	}
-		//
-		// 	return side_grass_mesh;
-		// }
-		//
-		// CreateTripleGrass () {
-		// 	let first_slice 	= this.CreateSlicedGrass();
-		// 	let second_slice 	= this.CreateSlicedGrass();
-		// 	let third_slice 	= this.CreateSlicedGrass();
-		//
-		// 	second_slice.rotateY(Math.PI/3);
-		// 	third_slice.rotateY(-Math.PI/3);
-		//
-		// 	let group = new THREE.Group();
-		// 	group.add(first_slice);
-		// 	group.add(second_slice);
-		// 	group.add(third_slice);
-		//
-		// 	return group;
-		// }
-
-		// let mesh_1 = this.CreateOneSidedGrass(texture, x, z);
-		// let geom_1 = mesh_1.geometry.clone();
-		// // geom_1.applyMatrix4(mesh_1.matrix);
-		//
-		// let mesh_2 = this.CreateOneSidedGrass(texture, x, z);
-		// mesh_2.rotateY(-Math.PI/2);
-		// let geom_2 = mesh_2.geometry.clone();
-		// console.log(geom_2.vertices);
-		// geom_2.applyMatrix4(mesh_2.matrix);
-		// console.log(geom_2.vertices);
-		//
-		// second_side.geometry.applyMatrix4(second_side.matrix);
-		// third_side.geometry.applyMatrix4(third_side.matrix);
-
-		// group.add(first_side);
-		// group.add(second_side);
-		// group.add(third_side);
-
-		// this.scene.add(this.blender_grass);
-		// this.blender_grass;
-		// this.gltf_loader.load('models/grass_2.gltf',  (gltf) => {
-		//     const root = gltf.scene;
-		//     this.scene.add(root);
-		// 	this.blender_grass = root;
-		//
-		// 	console.log(this.blender_grass.children[2]);
-		// 	console.log(this.blender_grass.children[3]);
-		// });
-
-		// let first_side = this.CreateOneSidedGrass(texture, x, z); 	// cover second image
-		// let second_side = this.CreateOneSidedGrass(texture, x, z);	// doesn't cover the first image
-		// let third_side = this.CreateOneSidedGrass(texture, x, z);	// doesn't cover the first image
-		// let thourd_side = this.CreateOneSidedGrass(texture, x, z);	// doesn't cover the first image
-		//
-		// // first_side.rotateY(Math.PI);
-		// second_side.rotateY(-Math.PI/2);
-		// // third_side.rotateY(Math.PI/2);
-		// thourd_side.rotateY(-Math.PI/2);
-		//
-		// first_side.position.x += 0.2;
-		// second_side.position.z += 0.2;
-		// third_side.position.x -= 0.2;
-		// thourd_side.position.z -= 0.2;
-		//
-		//
-		// this.grass_array.push(first_side);
-		// this.grass_array.push(second_side);
-		// this.grass_array.push(third_side);
-		// this.grass_array.push(thourd_side);
-
-		// this.grass_array.push(group);
-		//
-		// console.log(geom_1.vertices);
-		// geom_1.vertices.push(...geom_2.vertices);
-		// console.log(geom_1.vertices);
-		// var mesh_f = new THREE.Mesh(
-		// 	geom_1,
-		// 	// new THREE.MeshBasicMaterial({color: 0x00ff00, side: THREE.DoubleSide, wireframe: true})
-		// 	new THREE.MeshStandardMaterial({map : texture, side: THREE.DoubleSide, transparent: false})
-		// 	// new THREE.MeshBasicMaterial({color: 0x00ff00, side: THREE.DoubleSide, wireframe: true})
-		// );
-
-		// var vec = Object3D.geometry.vertices[n].clone();
-		// vec.applyMatrix4(Object3D.matrix);
-		// var group = new THREE.Group();
 
 		// this.point_light_1 = new THREE.PointLight('#FFFFFF', 1, 1000);
 		// this.point_light_1.position.set(0, 5, 0);
@@ -800,24 +671,6 @@
 		// 		// object.rotateY(50);
 		// });
 
-		// for (let grass of this.grass_array) {
-		// let grass = this.blender_grass;
-
-
-			// for (let vertex of grass.geometry.vertices) {
-			// 	vertex.x =
-			// 		(vertex.x_base + 0.5)
-			// 		+ (Math.sin(+Date.now() * 0.005)	// noise  Math.random()
-			// 		* 0.2
-			// 		+ 0.2)
-			// 		* (vertex.y_base);
-			//
-			// 	grass.geometry.verticesNeedUpdate = true; 	// otherwise it doesn't update
-			// 	grass.material.needsUpdate = true;
-			// }
-
-		// }
-
 		// this.scene.add(this.directional_light);
 		// this.scene.add(this.directional_light.target);
 		// this.scene.add(this.skybox);
@@ -828,11 +681,6 @@
 		// this.directional_light.target.position.set(0, 0, 0);
 		// this.directional_light_helper = new THREE.DirectionalLightHelper(this.directional_light, 10);
 		// this.directional_light.add(this.directional_light_helper);
-
-		// console.log(grass);
-		// grass.geometry.vertices.x = grass.geometry.vertices.x_base;
-		// this.test_grass_plane.geometry.vertices[index].x = this.test_grass_plane_basic_verteces[index].x;
-		// console.log(this.grass_array);
 
 		// this.test_cube = new THREE.SceneUtils.createMultiMaterialObject(
 		// 	new THREE.CubeGeometry(3, 3, 3),
@@ -852,24 +700,6 @@
 		// 		})
 		// 	]
 		// );
-
-		// for (let index in this.test_grass_plane.geometry.vertices) {
-		// 	this.test_grass_plane.geometry.vertices[index].x = this.test_grass_plane_basic_verteces[index].x;
-		//
-		// 	this.test_grass_plane.geometry.vertices[index].x =
-		// 		(this.test_grass_plane_basic_verteces[index].x + 0.5)
-		// 		+ (Math.sin(+Date.now() * 0.005)	// noise  Math.random()
-		//
-		// 		* 0.2
-		// 		+ 0.2)
-		// 		* (this.test_grass_plane.geometry.vertices[index].y + 1.5)
-		//
-		// 	;
-		//
-		// 	this.test_grass_plane.geometry.verticesNeedUpdate = true; 	// otherwise it doesn't update
-		// }
-
-		// console.log(this.test_grass_plane.geometry.vertices[0].x);
 
 		// this.gltf_loader = new THREE.GLTFLoader();
 		//
