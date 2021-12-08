@@ -73,6 +73,12 @@
 				this.connectionIsAlive = false;
 				this.pressedKeys = {};
 
+				this.config = {
+					shadows: true,
+					shadow_type: THREE.PCFSoftShadowMap,
+					antialias: true,
+				};
+
 				// this.player.temp.position = {};
 				// this.player.temp.direction = {};
 
@@ -126,10 +132,10 @@
 				// RENDERER
 
 				this.renderer = new THREE.WebGLRenderer({
-					antialias: true,
+					antialias: this.config.antialias,
 				});
-				this.renderer.shadowMap.enabled = true;
-				this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+				this.renderer.shadowMap.enabled = this.config.shadows;
+				this.renderer.shadowMap.type = this.config.shadow_type;
 
 				this.renderer.setClearColor('#9AD6FF');
 				this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -207,23 +213,152 @@
 
 			// FUNCTIONS AMBIENT
 
-			AnotherCustomShader () {
+			TestCustomShader () {
+				let vshader = `
+					uniform float time;
+
+					void main() {
+						vec2 wind_direction = vec2(0.866, 0.5);		// 60deg
+						float wind_force = float(sin(time) + sin(time/2.0) - sin(time * 2.9)) / 10.0 + 0.27;	// pseudo rand graph
+
+						float y_influence = float((position.y + 1.0)/2.0);
+						vec4 pre_gl_pos = modelMatrix * vec4(position, 1.0);
+
+						gl_Position =  projectionMatrix * viewMatrix * vec4 (
+							pre_gl_pos.x + (wind_force * y_influence * wind_direction[0]),
+							pre_gl_pos.y,	// idk how to change y
+							// float(sqrt(pow(position.y + 1.0, 2.0) - pow(wind_force, 2.0))) * y_influence,
+							pre_gl_pos.z + (wind_force * y_influence * wind_direction[1]),
+							pre_gl_pos.w
+						);
+					}
+
+					// first of all "model matrix" (object in world rotation), then "mine calculations" (wind effect), then "view matrix (camera rotation)"
+					// and the last one is "projection matrix" (from 3D to 2D)
+				`;
+
+				this.test_uniforms = {
+					time: {value: 0.0}
+				};
+
+				let mesh = new THREE.Mesh(
+					new THREE.PlaneGeometry(1, 2, 2, 4),
+					new THREE.ShaderMaterial({
+						side: THREE.DoubleSide,
+						wireframe: true,
+						vertexShader: vshader,
+						transparent: true,
+						depthWrite: false,	// без depthWrite всё идёт по пизде
+						uniforms: this.test_uniforms,
+					})
+					// new THREE.MeshBasicMaterial({color: 0x00ff00, side: THREE.DoubleSide, wireframe: true})
+				);
+
+				let mesh_2 = new THREE.Mesh(
+					new THREE.PlaneGeometry(1, 2, 2, 4),
+					new THREE.ShaderMaterial({
+						side: THREE.DoubleSide,
+						wireframe: true,
+						vertexShader: vshader,
+						transparent: true,
+						depthWrite: false,	// без depthWrite всё идёт по пизде
+						uniforms: this.test_uniforms,
+					})
+					// new THREE.MeshBasicMaterial({color: 0x00ff00, side: THREE.DoubleSide, wireframe: true})
+				);
+
+				mesh.position.y += 4;
+				mesh_2.position.y += 4;
+				mesh_2.rotateY(Math.PI/2);
+
+				let group = new THREE.Group();
+				group.add(mesh);
+				group.add(mesh_2);
+
+				return group;
+			}
+
+			// ThirdCustomShader () {
+			// 	let vshader = `
+			// 		uniform float u_time;
+			// 		uniform float outer_radius;
+			// 		uniform float array[252];
+			// 		varying float pick;
+			//
+			// 		// float rand(vec2 co){
+			// 		// 	return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
+			// 		// }
+			//
+			//
+			// 		void main() {
+			// 			float delta = ((sin(u_time)+1.0)/2.0);	// value from 0 to 1, changes in time
+			// 			// if (delta == 1)
+			//
+			// 			int x = int(position.x * 100.0);
+			// 			int y = 252;
+			// 			int index = int(float(x) - float(y) * floor(float(x)/float(y)));
+			// 			// так как шеёдер применяется к одному единсвенному vertex-у, то цикла нет и я через модуль от псевдорандома выбираю элемент из массива с рили рандомными значениями
+			//
+			//
+			// 			vec3 v = normalize(position) * (outer_radius + array[index]);	// gl_VertexID
+			// 			vec3 pos = mix(position, v, delta);
+			//
+			// 			pick = distance(position, v) * 1.0;
+			//
+			// 			gl_Position = projectionMatrix * modelViewMatrix * vec4( pos, 1.0 );
+			// 		}
+			// 	`;
+			//
+			// 	let fshader = `
+			// 		uniform float u_time;
+			// 		varying float pick;
+			//
+			// 		void main() {
+			// 			float delta = ((sin(u_time)+1.0)/2.0);	// value from 0 to 1, changes in time
+			//
+			// 			vec3 first_color = vec3(0.031,0.031,0.321);
+			// 			vec3 second_color = vec3(2,2,2);
+			// 			vec3 final_color = mix(first_color, second_color, pick*delta);
+			// 			gl_FragColor = vec4(final_color, 1.0);
+			// 		}
+			// 	`;
+			//
+			// 	this.sphere_uniforms = {
+			// 		u_time: 		{value: 0.0},
+			// 		outer_radius: 	{value: 1.0},
+			// 		needs_upd: 		{value: true}
+			// 	};
+			//
+			// 	this.sphere_uniforms.array = {type: "fv1", value: Array.from({length: 252}, () => {
+			// 		let num = Math.random()/3;
+			// 		return num;
+			// 	})};
+			//
+			// 	let mutant = new THREE.Mesh(
+			// 		new THREE.IcosahedronGeometry(1, 10),
+			// 		new THREE.ShaderMaterial({
+			// 			uniforms: this.sphere_uniforms,
+			// 			vertexShader: vshader,
+			// 			fragmentShader: fshader,
+			// 			wireframe: false,
+			// 			// lights: true
+			// 		})
+			// 	);
+			//
+			// 	return mutant;
+			// }
+
+			SecondCustomShader () {
 				let vshader = `
 					uniform float u_time;
 					uniform float outer_radius;
 					uniform float array[252];
 					varying float pick;
 
-					// float rand(vec2 co){
-					// 	return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
-					// }
-
-
 					void main() {
 						float delta = ((sin(u_time)+1.0)/2.0);	// value from 0 to 1, changes in time
-						// if (delta == 1)
 
-						int x = int(position.x * 100.0);
+						int x = int(position.x * 420.69);
 						int y = 252;
 						int index = int(float(x) - float(y) * floor(float(x)/float(y)));
 						// так как шеёдер применяется к одному единсвенному vertex-у, то цикла нет и я через модуль от псевдорандома выбираю элемент из массива с рили рандомными значениями
@@ -232,7 +367,7 @@
 						vec3 v = normalize(position) * (outer_radius + array[index]);	// gl_VertexID
 						vec3 pos = mix(position, v, delta);
 
-						pick = distance(position, v) * 1.0;
+						pick = distance(position, v) * 1.1;
 
 						gl_Position = projectionMatrix * modelViewMatrix * vec4( pos, 1.0 );
 					}
@@ -258,35 +393,23 @@
 					needs_upd: 		{value: true}
 				};
 
-				this.sphere_uniforms.array = {type: "fv1", value: Array.from({length: 252}, () => {
-					let num = Math.random()/3;
-					return num;
-				})};
+				this.sphere_uniforms.array = this.GetRandomArray();
 
 				let mutant = new THREE.Mesh(
-					new THREE.IcosahedronGeometry(1, 4),
+					new THREE.IcosahedronGeometry(1, 10),
 					new THREE.ShaderMaterial({
 						uniforms: this.sphere_uniforms,
 						vertexShader: vshader,
 						fragmentShader: fshader,
-						wireframe: true,
+						wireframe: false,
 						// lights: true
 					})
 				);
 
-				// setInterval(() => {
-				// 	this.sphere_uniforms.array = {type: "fv1", value: Array.from({length: 252}, () => {
-				// 		let num = Math.random()/3;
-				// 		// if (num < 0.1) num = 0;
-				// 		return num;
-				// 	})};
-				// }, 0.02 * 260 * 1000);
-
-
 				return mutant;
 			}
 
-			TestCustomShader () {
+			FirstCustomShader () {
 				let vshader = `
 					uniform float u_time;
 					uniform float u_radius;
@@ -320,12 +443,20 @@
 				return mutant;
 			}
 
+			GetRandomArray () {
+				return {type: "fv1", value: Array.from({length: 252}, () => {
+					let num = Math.random() / 2.5;
+					return num;
+				})};
+			}
+
 			CreatePedestals (number = 8) {
 				this.pedestals = [];
 				let meshes_on_pedestals = [
 					this.CreateGrassBush(3),	// grass bush
-					this.TestCustomShader(),	// cube-sphere mutant
-					this.AnotherCustomShader(),	// hz
+					this.FirstCustomShader(),	// cube-sphere
+					this.SecondCustomShader(),	// explozion sphere
+					this.TestCustomShader(),
 				];
 
 				// custom settings for meshes
@@ -364,24 +495,70 @@
 			}
 
 			CreateSlicedGrass () {
-				let texture_left 	= new THREE.TextureLoader().load("textures/grass_v4_left.png");
-				let texture_right 	= new THREE.TextureLoader().load("textures/grass_v4_right.png");
+				let vshader = `
+					uniform float u_time;
+
+					void main() {
+						float delta = ((sin(u_time)+1.0)/2.0);	// value from 0 to 1, changes in time
+						vec2 wind_direction = vec2(0.866, 0.5);		// 60deg
+						float wind_force = float(sin(u_time) + sin(u_time/2.0) - sin(u_time * 2.9)) / 10.0 + 0.27;	// pseudo rand graph
+
+						float y_influence = float((position.y + 1.0)/2.0);
+						float dy = float(sqrt(pow(y_influence, 2.0) - pow(wind_force, 2.0)));
+
+						vec3 pos_1 = vec3 (position.x, position.y, position.z);					// without wind
+						vec3 pos_2 = vec3 (														// with wind
+							position.x + (wind_force * y_influence * wind_direction[0]),
+							position.y,	// idk how to change y
+							// float(sqrt(pow(position.y + 1.0, 2.0) - pow(wind_force, 2.0))) * y_influence,
+							position.z + (wind_force * y_influence * wind_direction[1])
+						);
+
+						gl_Position = projectionMatrix * modelViewMatrix * vec4(pos_2, 1.0);	// from 3D coords to 2D
+					}
+				`;
+
+
+				this.grass_uniforms = {
+					u_time: {value: 0.0}
+				};
+
+				// for (let vertex of grass.geometry.vertices) {
+				// 	vertex.x =
+				// 		(vertex.x_base + 0.5)
+				// 		+ (Math.sin(+Date.now() * 0.005)	// noise  Math.random()
+				// 		* 0.2
+				// 		+ 0.2)
+				// 		* (vertex.y_base);
+				//
+				// 	grass.geometry.verticesNeedUpdate = true; 	// otherwise it doesn't update
+				// 	grass.material.needsUpdate = true;
+				// }
+
+				// let texture_left 	= new THREE.TextureLoader().load("textures/grass_v4_left.png");
+				// let texture_right 	= new THREE.TextureLoader().load("textures/grass_v4_right.png");
 
 				let left_part = new THREE.Mesh(
 					new THREE.PlaneGeometry(1, 2, 2, 4),
-					new THREE.MeshStandardMaterial({map: texture_left, side: THREE.DoubleSide, transparent: true, depthWrite: false}) 	// без depthWrite всё идёт по пизде
+					new THREE.ShaderMaterial({side: THREE.DoubleSide, wireframe: true, vertexShader: vshader, transparent: true, depthWrite: false,uniforms: this.grass_uniforms}) 	// без depthWrite всё идёт по пизде
 					// new THREE.MeshBasicMaterial({color: 0x00ff00, side: THREE.DoubleSide, wireframe: true})
 				);
 
 				let right_part = new THREE.Mesh(
 					new THREE.PlaneGeometry(1, 2, 2, 4),
-					new THREE.MeshStandardMaterial({map: texture_right, side: THREE.DoubleSide, transparent: true, depthWrite: false}) 	// без depthWrite всё идёт по пизде
+					new THREE.ShaderMaterial({side: THREE.DoubleSide, wireframe: true, vertexShader: vshader, transparent: true, depthWrite: false,uniforms: this.grass_uniforms}) 	// без depthWrite всё идёт по пизде
 					// new THREE.MeshBasicMaterial({color: 0x00ff00, side: THREE.DoubleSide, wireframe: true})
 				);
 
+				// map: texture_left
+
+				// MeshStandardMaterial
 
 				left_part.position.x -= left_part.geometry.parameters.width / 2;
 				right_part.position.x += right_part.geometry.parameters.width / 2;
+
+				// left_part.geometry.verticesNeedUpdate = true;
+				// right_part.material.needsUpdate = true;
 
 				// trasparent PNG also cast shadow
 				// left_part.castShadow = true;
@@ -391,6 +568,10 @@
 				group.add(left_part);
 				group.add(right_part);
 
+				// group.children[0].geometry.verticesNeedUpdate = true;
+				// group.children[0].geometry.vertices.needsUpdate = true;
+				// group.children[0].geometry.vertices.needUpdate = true;
+
 				return group;
 			}
 
@@ -399,6 +580,7 @@
 
 				for (let i = 0; i < sides; i++) {
 					let slice = this.CreateSlicedGrass(first_texture, second_texture);
+					// console.log(slice);
 					slice.rotateY((Math.PI / sides) * (i + 1)); 	//calculation for equal slices rotation
 					group.add(slice);
 				}
@@ -406,15 +588,15 @@
 				// поднятие по У на пол высота, так как центр меша в центре, а не у основания. Данные из первой полустороны
 				group.position.y += group.children[0].children[0].geometry.parameters.height / 2;
 
-				let vertices_copy = [];
-
-				for (let slice of group.children) {
-					for (let half of slice.children) {
-						// одинаковфе корды у всех вызодят, надо матрицу наверное применить
-						// vertices_copy.push(half.geometry.vertices);
-						// half.geometry.vertices;
-					}
-				}
+				// let vertices_copy = [];
+				//
+				// for (let slice of group.children) {
+				// 	for (let half of slice.children) {
+				// 		// одинаковфе корды у всех вызодят, надо матрицу наверное применить
+				// 		// vertices_copy.push(half.geometry.vertices);
+				// 		// half.geometry.vertices;
+				// 	}
+				// }
 
 				// console.log(vertices_copy);
 
@@ -505,19 +687,15 @@
 			}
 
 			drawNewFrame(params = {}) {
-				if (this.square_uniforms) this.square_uniforms.u_time.value += 0.03;
+				this.RenderPedestals();
 
-				if (this.sphere_uniforms) {
-					if(Math.sin(this.sphere_uniforms.u_time.value) < -0.97 && this.sphere_uniforms.needs_upd.value) {
-						this.sphere_uniforms.needs_upd.value = false;
-						this.sphere_uniforms.array = {type: "fv1", value: Array.from({length: 252}, () => {
-							let num = Math.random()/3;
-							return num;
-						})};
-					} else if (Math.sin(this.sphere_uniforms.u_time.value) > -0.97) this.sphere_uniforms.needs_upd.value = true;
-
-					this.sphere_uniforms.u_time.value += Math.PI/80;	// ~0.05
-				}
+				// console.log(this.scene.children[5].children[1]);
+				// this.scene.children[5].children[1].needsUpdate = true;
+				// this.scene.children[5].children[1].material.needsUpdate = true;
+				// this.scene.children[5].children[1].geometry.needsUpdate = true;
+				// this.scene.children[5].children[1].matrixWorldNeedsUpdate = true;
+				// this.scene.children[5].children[1].geometry.vertices.needsUpdate = true;
+				// this.scene.children[5].children[1].geometry.faces.needsUpdate = true;
 
 				// =====================================================
 
@@ -557,6 +735,37 @@
 				});
 
 				this.data_canvas.display(data_to_display); // if (data_to_display.length != 0)
+
+			}
+
+			RenderPedestals () {
+				// First pedestal - grass
+				if (this.grass_uniforms) {
+					// console.log(this.grass_uniforms.u_time.value);
+					this.grass_uniforms.u_time.value += 0.03;
+				}
+
+				// Second pedestal - cube sphere
+				if (this.square_uniforms) {
+					this.square_uniforms.u_time.value += 0.03;
+				}
+
+				// Third pedestal - explosion sphere
+				if (this.sphere_uniforms) {
+					// вся эта поебота нужна чтобы массив рандомных значений менялся во время схлопывания и не было видно рывков
+					if(Math.sin(this.sphere_uniforms.u_time.value) < -0.97 && this.sphere_uniforms.needs_upd.value) {
+						this.sphere_uniforms.needs_upd.value = false;
+						this.sphere_uniforms.array = this.GetRandomArray();
+					} else if (Math.sin(this.sphere_uniforms.u_time.value) > -0.97) this.sphere_uniforms.needs_upd.value = true;
+
+					this.sphere_uniforms.u_time.value += Math.PI/80;	// ~0.04
+				}
+
+				// Fourht pedestal - for tests
+				if (this.test_uniforms) {
+					this.test_uniforms.time.value += 0.04;
+					// console.log(this.test_uniforms.u_time.value);
+				}
 
 			}
 
@@ -702,6 +911,7 @@
 		}
 
 
+		// float dy = float(sqrt(pow(y_influence, 2.0) - pow(wind_force, 2.0)));
 		// CreateGrassGrid (by_x, by_z) {
 		// 	this.grass_array = [];
 		//
