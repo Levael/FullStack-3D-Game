@@ -5,12 +5,17 @@
   "main": "server.js",
   "scripts": {
     "https": "node https_server.js",
-    "game": "node game_http_server.js"
+    "game": "node game_http_server.js",
+    "test": "node code/main_server.js"
   },
   "author": "Michael Levin <Levael.Savvy@gmail.com>",
   "license": "ISC",
   "dependencies": {
     "ejs": "^3.1.5",
+    "express": "^4.17.3",
     "ws": "^7.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.7"
   }
 }
