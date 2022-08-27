@@ -15,7 +15,33 @@ body {
 
 canvas {
     display: block;
+    z-index: 90;
 }
+
+#wrapper {
+    display: block;
+    position: absolute;
+    z-index: 2;
+
+    transition-duration: 0s;    /* immediately exit fuulscreen */
+}
+
+/* :not(fullscreen):hover {
+    background-color: gray;
+    opacity: 0.4;
+} */
+
+#wrapper:hover:not(:fullscreen) {
+    background-color: gray;
+    opacity: 0.4;
+
+    transition-duration: 0.25s;    /* slowly getting dark on :hover */
+}
+
+/* #wrapper:fullscreen {
+    background-color: gray !important;
+    opacity: 1 !important;
+} */
 
 #fps_data {
     color: white;
@@ -23,6 +49,8 @@ canvas {
     position: absolute;
     top: 0;
     left: 0;
+    z-index: 900;
+    display: block;
 }
 
 #mini_instruction {

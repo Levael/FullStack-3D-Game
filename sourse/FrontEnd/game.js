@@ -48,7 +48,7 @@ class SocketGame {
             e.preventDefault();
             this.controls.lock();
 
-            document.getElementById('mini_instruction').classList.toggle('hidden');
+            // document.getElementById('mini_instruction').classList.toggle('hidden');
         });
 
         // THREE JS PART ---------------------------------------------------------------
@@ -76,9 +76,13 @@ class SocketGame {
             // canvas: document.querySelector(`#${this.canvas_id}`),	// id of html canvas
             canvas: this.canvas,
             antialias: this.config.antialias,
+            alpha: true
         });
         this.renderer.shadowMap.enabled = this.config.shadows;
         this.renderer.shadowMap.type = this.config.shadow_type;
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.outputEncoding = THREE.sRGBEncoding;
 
         this.renderer.setClearColor('#9AD6FF');
         this.UpdScreenParams(this.canvas_width, this.canvas_height);
@@ -117,15 +121,16 @@ class SocketGame {
 
         this.controls.addEventListener('lock', () => {
             this.full_screen_mode = true;
+            let wrapper = document.querySelector('#wrapper');
 
-            if (this.canvas.requestFullscreen) {				// Default
-                this.canvas.requestFullscreen();
-            } else if (this.canvas.mozRequestFullScreen) {		// Firefox
-                this.canvas.mozRequestFullScreen();
-            } else if (this.canvas.webkitRequestFullscreen) {	// Chrome, Safari & Opera
-                this.canvas.webkitRequestFullscreen();
-            } else if (this.canvas.msRequestFullscreen) {		// IE/Edge
-                this.canvas.msRequestFullscreen();
+            if (wrapper.requestFullscreen) {				// Default
+                wrapper.requestFullscreen();
+            } else if (wrapper.mozRequestFullScreen) {		// Firefox
+                wrapper.mozRequestFullScreen();
+            } else if (wrapper.webkitRequestFullscreen) {	// Chrome, Safari & Opera
+                wrapper.webkitRequestFullscreen();
+            } else if (wrapper.msRequestFullscreen) {		// IE/Edge
+                wrapper.msRequestFullscreen();
             }
             // this.canvas.style.width = '100%';
             // this.canvas.style.height = '100%';
@@ -160,6 +165,11 @@ class SocketGame {
     };
 
     // MAKE OBJECTS
+
+    // CreateFpsDiv () {
+    //     let test = new CSS3DObject(document.querySelector('#fps_data'));
+    //     console.log(test);
+    // }
 
     CreateAmbientLight () {
         return new THREE.AmbientLight('#FFFFFF', 0.9);
@@ -380,7 +390,9 @@ class SocketGame {
         let pedestal = this.gltf_loader.load('/models/pedestal.gltf', (object) => {
             let pedestal = object.scene.children[0];
             pedestal.castShadow = true;
-            // pedestal.receiveShadow = true;
+
+            pedestal.material.color.setHex(0x7a7a7a);   // gray
+            pedestal.receiveShadow = false;
 
             for (let n = 0; n < number; n++) {
                 let group = new THREE.Group();
@@ -507,6 +519,8 @@ class SocketGame {
     // FUNCTIONS CONTROLS
 
     MovePlayer() {
+        if (!this.full_screen_mode) return;
+
         this.player.temp.direction = this.camera.getWorldDirection();
 
         if (this.pressedKeys['87']) this.CalcMoveForward(); // W
