@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang>
+
+<head>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="MobileOptimized" content="width">
+	<meta name="HandheldFriendly" content="true">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta charset="UTF-8">
+    <link rel="stylesheet" href="main.css">
+	<title>Game v9 3D</title>
+</head>
+
+<body>
+
+	<!-- <h3 id="mini_instruction">Right click to start</h3> -->
+	<canvas id="game_3d"></canvas>
+	<div id="fps_data"></div>
+
+	<script src="/libs/three.min.js"></script>
+	<script src="/libs/PointerLockControls.js"></script>
+	<script src="/libs/GLTFLoader.js"></script>
+	<script src="/libs/fps.js"></script>
+	<script src="game.js"></script>
+
+    <script type="text/javascript">
+        window.onload = () => {
+            MAIN();
+        }
+
+        function MAIN() {
+            new SocketGame().init({
+                'canvas_id': 'game_3d',
+                'canvas_width': 550,
+                'canvas_height': 300,
+
+                'ip': 'localhost',
+                'port': 5001
+            });
+        }
+    </script>
+
+</body>
+
+</html>

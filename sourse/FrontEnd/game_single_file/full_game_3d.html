@@ -18,6 +18,7 @@
 		body {
 			margin: 0;
 			padding: 0;
+			overflow: hidden;
 		}
 
 		.hidden {
@@ -26,6 +27,14 @@
 
 		canvas {
 			display: block;
+		}
+
+		#fps_data {
+			color: white;
+			background-color: rgba(0,255,0,0.2);
+			position: absolute;
+			top: 0;
+			left: 0;
 		}
 
 		#mini_instruction {
@@ -53,6 +62,8 @@
 <body>
 
 	<h3 id="mini_instruction">Right click to start</h3>
+	<canvas id="game_3d"></canvas>
+	<div id="fps_data"></div>
 
 	<script src='/libs/three.min.js'></script>
 	<script src="/libs/PointerLockControls.js"></script>
@@ -66,21 +77,24 @@
 			init(settings) {
 
 				// LOGIC PART ------------------------------------------------------------------
-				this.data_canvas = new Fps(); // подключение "модуля" fps
+				this.data_canvas = new Fps('fps_data'); // подключение "модуля" fps + div id
 
 				this.players = {};
 				this.ping = 'wait';
 				this.connectionIsAlive = false;
 				this.pressedKeys = {};
+				this.full_screen_mode = false;
+				this.show_tech_data = true;
+
+				this.canvas = document.querySelector(`#${settings.canvas_id}`);
+				this.canvas_width = settings.canvas_width || 300;
+				this.canvas_height = settings.canvas_height || 200;
 
 				this.config = {
 					shadows: true,
 					shadow_type: THREE.PCFSoftShadowMap,
 					antialias: true,
 				};
-
-				// this.player.temp.position = {};
-				// this.player.temp.direction = {};
 
 				this.player = {
 					id: '',
@@ -104,7 +118,7 @@
 					this.pressedKeys[e.keyCode] = false;
 				});
 
-				window.addEventListener('contextmenu', (e) => {
+				this.canvas.addEventListener('click', (e) => {
 					e.preventDefault();
 					this.controls.lock();
 
@@ -118,7 +132,8 @@
 
 				this.camera = new THREE.PerspectiveCamera(
 					75,
-					window.innerWidth / window.innerHeight,
+					this.canvas_width / this.canvas_height,
+					// window.innerWidth / window.innerHeight,
 					0.1,
 					1000
 				);
@@ -132,42 +147,25 @@
 				// RENDERER
 
 				this.renderer = new THREE.WebGLRenderer({
+					// canvas: document.querySelector(`#${this.canvas_id}`),	// id of html canvas
+					canvas: this.canvas,
 					antialias: this.config.antialias,
 				});
 				this.renderer.shadowMap.enabled = this.config.shadows;
 				this.renderer.shadowMap.type = this.config.shadow_type;
 
 				this.renderer.setClearColor('#9AD6FF');
-				this.renderer.setSize(window.innerWidth, window.innerHeight);
-				document.body.appendChild(this.renderer.domElement);
+				this.UpdScreenParams(this.canvas_width, this.canvas_height);
 
 				window.addEventListener('resize', () => {
-					this.renderer.setSize(window.innerWidth, window.innerHeight);
-					this.camera.aspect = window.innerWidth / window.innerHeight;
-					this.camera.updateProjectionMatrix();
+					if (this.full_screen_mode) {
+						this.UpdScreenParams(window.innerWidth, window.innerHeight);
+					}
 				});
-
-				// LIGHTS
-
-				this.ambient_light = new THREE.AmbientLight('#FFFFFF', 0.9);
-				this.point_light = new THREE.PointLight('#FFFFFF', 1);
-				this.point_light.position.set(0,7,0);
-				this.point_light.castShadow = true;
-
-				// OBJECTS
-
-				this.test_floor_plane = new THREE.Mesh(
-					new THREE.PlaneGeometry(50, 50),
-					new THREE.MeshPhongMaterial({color: 0xE1EDF9, side: THREE.DoubleSide})
-				);
-				this.test_floor_plane.rotateX(-Math.PI/2);
-				this.test_floor_plane.receiveShadow = true;
-
 
 				// Skybox
 
 				this.cube_loader.setPath('Skyboxs/');
-
 				this.texture_cube = this.cube_loader.load([
 					'right.png', // x+
 					'left.png', // x-
@@ -182,20 +180,36 @@
 				this.scene = new THREE.Scene();
 				this.scene.background = this.texture_cube;
 
-				this.scene.add(this.ambient_light);
-				this.scene.add(this.test_floor_plane);
-				this.scene.add(this.point_light);
-
-				this.CreatePedestals();
+				this.scene.add(this.CreateAmbientLight());
+				this.scene.add(this.CreateFloor());
+				this.scene.add(this.CreatePointLight());
+				this.scene.add(this.CreatePedestals());
 
 				// CONTROLS
 
 				this.controls = new THREE.PointerLockControls(this.camera, document.body);
 
-				this.controls.addEventListener('lock', () => {});
+				this.controls.addEventListener('lock', () => {
+					this.full_screen_mode = true;
 
-				this.controls.addEventListener('unlock', () => {});
+					if (this.canvas.requestFullscreen) {				// Default
+						this.canvas.requestFullscreen();
+					} else if (this.canvas.mozRequestFullScreen) {		// Firefox
+						this.canvas.mozRequestFullScreen();
+					} else if (this.canvas.webkitRequestFullscreen) {	// Chrome, Safari & Opera
+						this.canvas.webkitRequestFullscreen();
+					} else if (this.canvas.msRequestFullscreen) {		// IE/Edge
+						this.canvas.msRequestFullscreen();
+					}
+					// this.canvas.style.width = '100%';
+					// this.canvas.style.height = '100%';
+				});
 
+				this.controls.addEventListener('unlock', () => {
+					this.full_screen_mode = false;
+
+					this.UpdScreenParams(this.canvas_width, this.canvas_height);
+				});
 
 				// WEB SOCKET PART --------------------------------------------------------------
 				this.wsc = new WebSocket(`ws://${settings.ip}:${settings.port}`);
@@ -211,7 +225,38 @@
 				});
 			}
 
-			// FUNCTIONS AMBIENT
+			// INNER FUNCTIONS
+
+			UpdScreenParams (width, height) {
+				this.renderer.setSize(width, height);
+				this.camera.aspect = width / height;
+				this.camera.updateProjectionMatrix();
+			};
+
+			// MAKE OBJECTS
+
+			CreateAmbientLight () {
+				return new THREE.AmbientLight('#FFFFFF', 0.9);
+			}
+
+			CreatePointLight () {
+				let point_light = new THREE.PointLight('#FFFFFF', 1);
+				point_light.position.set(0,7,0);
+				point_light.castShadow = true;
+
+				return point_light;
+			}
+
+			CreateFloor () {
+				let floor_plane = new THREE.Mesh(
+					new THREE.PlaneGeometry(50, 50),
+					new THREE.MeshPhongMaterial({color: 0xE1EDF9, side: THREE.DoubleSide})
+				);
+				floor_plane.rotateX(-Math.PI/2);
+				floor_plane.receiveShadow = true;
+
+				return floor_plane;
+			}
 
 			TestCustomShader () {
 				let vshader = `
@@ -382,6 +427,7 @@
 
 			CreatePedestals (number = 8) {
 				this.pedestals = [];
+				let all_pedestals_group = new THREE.Group();
 				let meshes_on_pedestals = [
 					this.CreateGrassBush(4),	// grass bush
 					this.FirstCustomShader(),	// cube-sphere
@@ -419,9 +465,13 @@
 						// group.position.x = (-number/2 + n)*3;		// in line order
 						group.translateZ(7);							// in radial order
 
-						this.scene.add(group);
+						all_pedestals_group.add(group);
+						// this.scene.add(group);
 					}
 				});
+
+				return all_pedestals_group;
+				// this.scene.add(all_pedestals_group);
 			}
 
 			CreateSlicedGrass () {
@@ -613,16 +663,6 @@
 			drawNewFrame(params = {}) {
 				this.RenderPedestals();
 
-				// console.log(this.scene.children[5].children[1]);
-				// this.scene.children[5].children[1].needsUpdate = true;
-				// this.scene.children[5].children[1].material.needsUpdate = true;
-				// this.scene.children[5].children[1].geometry.needsUpdate = true;
-				// this.scene.children[5].children[1].matrixWorldNeedsUpdate = true;
-				// this.scene.children[5].children[1].geometry.vertices.needsUpdate = true;
-				// this.scene.children[5].children[1].geometry.faces.needsUpdate = true;
-
-				// =====================================================
-
 				for (let player in this.players) {
 
 					if (this.players[player].object) {
@@ -637,29 +677,31 @@
 				}
 
 				let my_pos = this.players[this.player.id].position;
-				this.camera.position.set(my_pos.x, my_pos.y, my_pos.z)
+				this.camera.position.set(my_pos.x, my_pos.y, my_pos.z);
+
+				if (this.show_tech_data) {
+					// fps and another data to display on other 2D canvas
+					let data_to_display = [];
+
+					if (params.ping) data_to_display.push({
+						data: params.ping,
+						index: 1,
+						pre_text: 'ping',
+						post_text: 'ms'
+					});
+
+					if (params.players_count) data_to_display.push({
+						data: params.players_count,
+						index: 3,
+						pre_text: 'players',
+						post_text: ''
+					});
+
+					// todo later (change to part of canvas)
+					this.data_canvas.display(data_to_display); // if (data_to_display.length != 0)
+				}
 
 				this.renderer.render(this.scene, this.camera);
-
-				// fps and another data to display on other 2D canvas
-				let data_to_display = [];
-
-				if (params.ping) data_to_display.push({
-					data: params.ping,
-					index: 1,
-					pre_text: 'ping',
-					post_text: 'ms'
-				});
-
-				if (params.players_count) data_to_display.push({
-					data: params.players_count,
-					index: 3,
-					pre_text: 'players',
-					post_text: ''
-				});
-
-				this.data_canvas.display(data_to_display); // if (data_to_display.length != 0)
-
 			}
 
 			RenderPedestals () {
@@ -824,6 +866,10 @@
 
 		function MAIN() {
 			new SocketGame().init({
+				'canvas_id': 'game_3d',
+				'canvas_width': 550,
+				'canvas_height': 300,
+
 				'ip': 'localhost',
 				'port': 5001
 			});
@@ -834,6 +880,24 @@
 		}
 
 	</script>
+
+
+
+	<!-- // window.addEventListener('contextmenu', (e) => {
+	// 	e.preventDefault();
+	// 	this.controls.lock();
+	//
+	// 	document.getElementById('mini_instruction').classList.toggle('hidden');
+	// }); -->
+
+
+	<!-- // console.log(this.scene.children[5].children[1]);
+	// this.scene.children[5].children[1].needsUpdate = true;
+	// this.scene.children[5].children[1].material.needsUpdate = true;
+	// this.scene.children[5].children[1].geometry.needsUpdate = true;
+	// this.scene.children[5].children[1].matrixWorldNeedsUpdate = true;
+	// this.scene.children[5].children[1].geometry.vertices.needsUpdate = true;
+	// this.scene.children[5].children[1].geometry.faces.needsUpdate = true; -->
 
 </body>
 

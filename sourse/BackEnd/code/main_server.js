@@ -2,7 +2,7 @@ const   express     = require('express'),
         file        = require('fs'),
         path        = require('path'),
         bodyParser  = require('body-parser'),
-        
+
         game_module = require('./game_module.js'),
 
         // -------------------------------------------------------------------------------------
@@ -37,5 +37,7 @@ app.get('/', (req, res) => {
 });
 
 app.get('/game', (req, res) => {
-    res.sendFile(path.join(sourse_folder, 'game_single_file/full_game_3d.html'));
+    // res.sendFile(path.join(sourse_folder, 'game_single_file/full_game_3d.html'));
+    res.sendFile(path.join(sourse_folder, 'index.html'));
+
 });
