@@ -1,9 +1,7 @@
 class SocketGame {
 
-    init(settings) {
-
-        // LOGIC PART ------------------------------------------------------------------
-        this.data_canvas = new Fps('fps_data'); // подключение "модуля" fps + div id
+    constructor (settings) {
+        this.data_canvas = new Fps(settings.fps_div_id);    // подключение "модуля" fps + div id
 
         this.players = {};
         this.ping = 'wait';
@@ -13,13 +11,18 @@ class SocketGame {
         this.show_tech_data = true;
 
         this.canvas = document.querySelector(`#${settings.canvas_id}`);
-        this.canvas_width = settings.canvas_width || 300;
-        this.canvas_height = settings.canvas_height || 200;
+        this.icon_width = window.innerWidth / (100 / settings.canvas_width_percent) || 300;     // canvas on page (not fullsized)
+        this.icon_height = window.innerHeight / (100 / settings.canvas_height_percent) || 200;
+        // this.zoomInAnimation = false;
+        // this.zoomAnimationStep = 175;
 
         this.config = {
             shadows: true,
             shadow_type: THREE.PCFSoftShadowMap,
             antialias: true,
+            toneMapping: THREE.ACESFilmicToneMapping,
+            pixelRatio: window.devicePixelRatio,
+            outputEncoding: THREE.sRGBEncoding
         };
 
         this.player = {
@@ -34,7 +37,9 @@ class SocketGame {
             position: {},
             direction: {},
         };
+    }
 
+    init (settings) {
         window.addEventListener('keydown', (e) => {
             // console.log(e.keyCode);
             this.pressedKeys[e.keyCode] = true;
@@ -44,54 +49,31 @@ class SocketGame {
             this.pressedKeys[e.keyCode] = false;
         });
 
+        // this.canvas.addEventListener('click', (e) => {
+        //     e.preventDefault();
+        //     this.controls.lock();
+        //
+        //     // document.getElementById('mini_instruction').classList.toggle('hidden');
+        // });
+
         this.canvas.addEventListener('click', (e) => {
             e.preventDefault();
             this.controls.lock();
-
-            // document.getElementById('mini_instruction').classList.toggle('hidden');
+            // this.ZoomInAnimation();
         });
 
         // THREE JS PART ---------------------------------------------------------------
 
-        // CAMERA
-        // Camera position and view direction will be set up after server autorisation
+        this.camera = this.CreateCamera();  // Camera position and view direction will be set up after server autorisation
 
-        this.camera = new THREE.PerspectiveCamera(
-            75,
-            this.canvas_width / this.canvas_height,
-            // window.innerWidth / window.innerHeight,
-            0.1,
-            1000
-        );
+        this.renderer = this.CreateRenderer();
+        this.UpdScreenParams(this.icon_width, this.icon_height);
 
         // LOADERS
 
         this.cube_loader = new THREE.CubeTextureLoader();
         this.gltf_loader = new THREE.GLTFLoader();
         // this.basic_texture_loader = new THREE.TextureLoader();
-
-        // RENDERER
-
-        this.renderer = new THREE.WebGLRenderer({
-            // canvas: document.querySelector(`#${this.canvas_id}`),	// id of html canvas
-            canvas: this.canvas,
-            antialias: this.config.antialias,
-            alpha: true
-        });
-        this.renderer.shadowMap.enabled = this.config.shadows;
-        this.renderer.shadowMap.type = this.config.shadow_type;
-        this.renderer.setPixelRatio(window.devicePixelRatio);
-        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.outputEncoding = THREE.sRGBEncoding;
-
-        this.renderer.setClearColor('#9AD6FF');
-        this.UpdScreenParams(this.canvas_width, this.canvas_height);
-
-        window.addEventListener('resize', () => {
-            if (this.full_screen_mode) {
-                this.UpdScreenParams(window.innerWidth, window.innerHeight);
-            }
-        });
 
         // Skybox
 
@@ -132,14 +114,12 @@ class SocketGame {
             } else if (wrapper.msRequestFullscreen) {		// IE/Edge
                 wrapper.msRequestFullscreen();
             }
-            // this.canvas.style.width = '100%';
-            // this.canvas.style.height = '100%';
         });
 
         this.controls.addEventListener('unlock', () => {
             this.full_screen_mode = false;
 
-            this.UpdScreenParams(this.canvas_width, this.canvas_height);
+            this.UpdScreenParams(this.icon_width, this.icon_height);
         });
 
         // WEB SOCKET PART --------------------------------------------------------------
@@ -158,18 +138,53 @@ class SocketGame {
 
     // INNER FUNCTIONS
 
+    // ZoomInAnimation () {
+    //     this.zoomInAnimation = true;
+    // }
+
     UpdScreenParams (width, height) {
         this.renderer.setSize(width, height);
+        // this.renderer.setViewport(0,0,width, height);
         this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
     };
 
     // MAKE OBJECTS
 
-    // CreateFpsDiv () {
-    //     let test = new CSS3DObject(document.querySelector('#fps_data'));
-    //     console.log(test);
-    // }
+    CreateCamera () {
+        return new THREE.PerspectiveCamera(
+            75,
+            this.canvas.width / this.canvas.height,
+            0.1,
+            1000
+        );
+    }
+
+    CreateRenderer () {
+        let renderer = new THREE.WebGLRenderer({
+            canvas:     this.canvas,
+            antialias:  this.config.antialias,
+            alpha:      true
+        });
+
+        renderer.shadowMap.enabled  = this.config.shadows;
+        renderer.shadowMap.type     = this.config.shadow_type;
+        renderer.toneMapping        = this.config.toneMapping;
+        renderer.outputEncoding     = this.config.outputEncoding;
+        // renderer.setPixelRatio(this.config.pixelRatio);      // breakes width
+        // renderer.setClearColor('#5b2db3');                   // doesn't change anything
+
+        window.addEventListener('resize', () => {
+            if (this.full_screen_mode) {
+                this.UpdScreenParams(window.innerWidth, window.innerHeight);
+            } else {
+                // standart small canvas size
+                this.UpdScreenParams(window.innerWidth / 4, window.innerHeight / 4);
+            }
+        });
+
+        return renderer;
+    }
 
     CreateAmbientLight () {
         return new THREE.AmbientLight('#FFFFFF', 0.9);
@@ -194,69 +209,38 @@ class SocketGame {
         return floor_plane;
     }
 
-    TestCustomShader () {
+    FirstCustomShader () {
         let vshader = `
-            uniform float time;
+            uniform float u_time;
+            uniform float u_radius;
+
 
             void main() {
-                vec2 wind_direction = vec2(0.866, 0.5);		// 60deg
-                float wind_force = float(sin(time) + sin(time/2.0) - sin(time * 2.9)) / 10.0 + 0.27;	// pseudo rand graph
+              float delta = ((sin(u_time)+1.0)/2.0);
 
-                float y_influence = float((position.y + 1.0)/2.0);
-                vec4 pre_gl_pos = modelMatrix * vec4(position, 1.0);
+              vec3 v = normalize(position) * u_radius;
+              vec3 pos = mix(position, v, delta);
 
-                gl_Position =  projectionMatrix * viewMatrix * vec4 (
-                    pre_gl_pos.x + (wind_force * y_influence * wind_direction[0]),
-                    pre_gl_pos.y,	// idk how to change y
-                    // float(sqrt(pow(position.y + 1.0, 2.0) - pow(wind_force, 2.0))) * y_influence,
-                    pre_gl_pos.z + (wind_force * y_influence * wind_direction[1]),
-                    pre_gl_pos.w
-                );
+              gl_Position = projectionMatrix * modelViewMatrix * vec4( pos, 1.0 );
             }
-
-            // first of all "model matrix" (object in world rotation), then "mine calculations" (wind effect), then "view matrix (camera rotation)"
-            // and the last one is "projection matrix" (from 3D to 2D)
         `;
 
-        this.test_uniforms = {
-            time: {value: 0.0}
+        this.square_uniforms = {
+            u_time: 	{value: 0.0},
+            u_radius: 	{value: 1.0}
         };
 
-        let mesh = new THREE.Mesh(
-            new THREE.PlaneGeometry(1, 2, 2, 4),
+        let mutant = new THREE.Mesh(
+            new THREE.BoxGeometry(1,1,1, 6,6,6),
             new THREE.ShaderMaterial({
-                side: THREE.DoubleSide,
-                wireframe: true,
+                uniforms: this.square_uniforms,
                 vertexShader: vshader,
-                transparent: true,
-                depthWrite: false,	// без depthWrite всё идёт по пизде
-                uniforms: this.test_uniforms,
+                wireframe: true
+                // needsUpdate: true
             })
-            // new THREE.MeshBasicMaterial({color: 0x00ff00, side: THREE.DoubleSide, wireframe: true})
         );
 
-        let mesh_2 = new THREE.Mesh(
-            new THREE.PlaneGeometry(1, 2, 2, 4),
-            new THREE.ShaderMaterial({
-                side: THREE.DoubleSide,
-                wireframe: true,
-                vertexShader: vshader,
-                transparent: true,
-                depthWrite: false,	// без depthWrite всё идёт по пизде
-                uniforms: this.test_uniforms,
-            })
-            // new THREE.MeshBasicMaterial({color: 0x00ff00, side: THREE.DoubleSide, wireframe: true})
-        );
-
-        mesh.position.y += 4;
-        mesh_2.position.y += 4;
-        mesh_2.rotateY(Math.PI/2);
-
-        let group = new THREE.Group();
-        group.add(mesh);
-        group.add(mesh_2);
-
-        return group;
+        return mutant;
     }
 
     SecondCustomShader () {
@@ -314,40 +298,6 @@ class SocketGame {
                 fragmentShader: fshader,
                 wireframe: false,
                 // lights: true
-            })
-        );
-
-        return mutant;
-    }
-
-    FirstCustomShader () {
-        let vshader = `
-            uniform float u_time;
-            uniform float u_radius;
-
-
-            void main() {
-              float delta = ((sin(u_time)+1.0)/2.0);
-
-              vec3 v = normalize(position) * u_radius;
-              vec3 pos = mix(position, v, delta);
-
-              gl_Position = projectionMatrix * modelViewMatrix * vec4( pos, 1.0 );
-            }
-        `;
-
-        this.square_uniforms = {
-            u_time: 	{value: 0.0},
-            u_radius: 	{value: 1.0}
-        };
-
-        let mutant = new THREE.Mesh(
-            new THREE.BoxGeometry(1,1,1, 6,6,6),
-            new THREE.ShaderMaterial({
-                uniforms: this.square_uniforms,
-                vertexShader: vshader,
-                wireframe: true
-                // needsUpdate: true
             })
         );
 
@@ -535,7 +485,7 @@ class SocketGame {
     }
 
     GetCameraYangle() {
-        // это поебота с вектором нужна только потому что автор движка, блять, считает угол по 180 градусов, а не 360. Пидарас. Или нет
+        // эта поебота с вектором нужна только потому что автор движка, блять, считает угол по 180 градусов, а не 360. Пидарас. Или нет
 
         let vector = this.camera.getWorldDirection(),
             Y_angle = Math.atan2(vector.x, vector.z);
@@ -590,7 +540,6 @@ class SocketGame {
                 ping: this.ping,
                 players_count: Object.keys(this.players).length
             });
-            // this.drawNewFrame();
 
             window.requestAnimationFrame(() => this.animationLoop());
         }
@@ -602,6 +551,18 @@ class SocketGame {
 
     drawNewFrame(params = {}) {
         this.RenderPedestals();
+
+        // if (this.zoomInAnimation) {
+        //     let ratio = this.canvas.width / this.canvas.height;
+        //     // let ratio = window.innerWidth / window.innerHeight;
+        //
+        //     this.UpdScreenParams(this.canvas.width + this.zoomAnimationStep, this.canvas.height + this.zoomAnimationStep/ratio);
+        //
+        //     if (this.canvas.width >= window.innerWidth) {
+        //         this.zoomInAnimation = false;
+        //         this.controls.lock();
+        //     }
+        // }
 
         for (let player in this.players) {
 
@@ -802,3 +763,68 @@ class SocketGame {
     }
 
 }
+
+// TestCustomShader () {
+//     let vshader = `
+//         uniform float time;
+//
+//         void main() {
+//             vec2 wind_direction = vec2(0.866, 0.5);		// 60deg
+//             float wind_force = float(sin(time) + sin(time/2.0) - sin(time * 2.9)) / 10.0 + 0.27;	// pseudo rand graph
+//
+//             float y_influence = float((position.y + 1.0)/2.0);
+//             vec4 pre_gl_pos = modelMatrix * vec4(position, 1.0);
+//
+//             gl_Position =  projectionMatrix * viewMatrix * vec4 (
+//                 pre_gl_pos.x + (wind_force * y_influence * wind_direction[0]),
+//                 pre_gl_pos.y,	// idk how to change y
+//                 // float(sqrt(pow(position.y + 1.0, 2.0) - pow(wind_force, 2.0))) * y_influence,
+//                 pre_gl_pos.z + (wind_force * y_influence * wind_direction[1]),
+//                 pre_gl_pos.w
+//             );
+//         }
+//
+//         // first of all "model matrix" (object in world rotation), then "mine calculations" (wind effect), then "view matrix (camera rotation)"
+//         // and the last one is "projection matrix" (from 3D to 2D)
+//     `;
+//
+//     this.test_uniforms = {
+//         time: {value: 0.0}
+//     };
+//
+//     let mesh = new THREE.Mesh(
+//         new THREE.PlaneGeometry(1, 2, 2, 4),
+//         new THREE.ShaderMaterial({
+//             side: THREE.DoubleSide,
+//             wireframe: true,
+//             vertexShader: vshader,
+//             transparent: true,
+//             depthWrite: false,	// без depthWrite всё идёт по пизде
+//             uniforms: this.test_uniforms,
+//         })
+//         // new THREE.MeshBasicMaterial({color: 0x00ff00, side: THREE.DoubleSide, wireframe: true})
+//     );
+//
+//     let mesh_2 = new THREE.Mesh(
+//         new THREE.PlaneGeometry(1, 2, 2, 4),
+//         new THREE.ShaderMaterial({
+//             side: THREE.DoubleSide,
+//             wireframe: true,
+//             vertexShader: vshader,
+//             transparent: true,
+//             depthWrite: false,	// без depthWrite всё идёт по пизде
+//             uniforms: this.test_uniforms,
+//         })
+//         // new THREE.MeshBasicMaterial({color: 0x00ff00, side: THREE.DoubleSide, wireframe: true})
+//     );
+//
+//     mesh.position.y += 4;
+//     mesh_2.position.y += 4;
+//     mesh_2.rotateY(Math.PI/2);
+//
+//     let group = new THREE.Group();
+//     group.add(mesh);
+//     group.add(mesh_2);
+//
+//     return group;
+// }

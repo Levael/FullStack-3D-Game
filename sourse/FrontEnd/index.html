@@ -14,7 +14,7 @@
 <body>
 
 	<!-- <h3 id="mini_instruction">Right click to start</h3> -->
-     <div id="wrapper">  <!-- Is needed to show fps on top fullscreen -->
+     <div id="wrapper" onresize="() => {console.log(4)}">  <!-- Is needed to show fps on top fullscreen -->
         <div id="fps_data"></div>
         <canvas id="game_3d"></canvas>
     </div>
@@ -32,11 +32,12 @@
         }
 
         function MAIN() {
-            new SocketGame().init({
+            new SocketGame({
                 'canvas_id': 'game_3d',
-                'canvas_width': 550,
-                'canvas_height': 300,
-
+                'fps_div_id': 'fps_data',
+                'canvas_width_percent': 25,
+                'canvas_height_percent': 25
+            }).init({
                 'ip': 'localhost',
                 'port': 5001
             });
